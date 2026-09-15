@@ -82,6 +82,17 @@
   };
   const ACTIVE_STATES = new Set(['on', 'home', 'open', 'playing', 'active', 'true']);
 
+  const navigate = (path, replace = false) => {
+    const destination = String(path || '').trim();
+    if (!destination) return;
+    if (/^https?:\/\//i.test(destination)) {
+      window.location.href = destination;
+      return;
+    }
+    window.history[replace ? 'replaceState' : 'pushState'](null, '', destination);
+    window.dispatchEvent(new CustomEvent('location-changed'));
+  };
+
   const escapeHtml = (value = '') => String(value).replace(/[&<>"']/g, (char) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
   }[char]));
@@ -165,7 +176,7 @@
   const active = (state) => Boolean(state && ACTIVE_STATES.has(String(state.state).toLowerCase()));
 
   const supportsBrightness = (state) => Boolean(state && (
-    state.attributes?.brightness != null ||
+    state.attributes?.brightness_percent != null ||
     state.attributes?.supported_color_modes?.some((mode) => !['onoff', 'unknown'].includes(mode))
   ));
   const templateBoolean = (value) => {
@@ -242,6 +253,7 @@
       this._templates = [];
       this._activeTemplateResult = undefined;
       this._activeTemplateError = false;
+      this._activeTemplateIsDynamic = false;
       for (const [field, color] of Object.entries(value || {})) {
         if (field !== 'color' && !field.endsWith('_color')) continue;
         if (typeof color !== 'string' || !/\{[{%#]/.test(color)) continue;
@@ -254,7 +266,8 @@
         this._templates.push({ kind:'text', field, template });
         delete this._config[field];
       }
-      if (typeof value?.active_template === 'string' && value.active_template.trim()) {
+      if (typeof value?.active_template === 'string' && /\{[{%#]/.test(value.active_template)) {
+        this._activeTemplateIsDynamic = true;
         this._templates.push({ kind:'active', template:value.active_template });
       }
       this.startTemplates();
@@ -350,9 +363,9 @@
       return this.shadowRoot?.querySelector('.grid-2-row') ? 2 : 1;
     }
 
-    async service(domain, service, data) {
+    async service(domain, service, data, target) {
       try {
-        await this._hass?.callService(domain, service, data);
+        await this._hass?.callService(domain, service, data, target);
         return true;
       } catch (error) {
         console.error(`[reference-glow-cards] ${domain}.${service}`, error);
@@ -372,20 +385,50 @@
       const definition = typeof action === 'string' ? { action } : action;
       const type = String(definition?.action || 'none').toLowerCase();
       if (type === 'none') return;
+
+      const confirmation = definition.confirmation;
+      const exempt = Array.isArray(confirmation?.exemptions) && confirmation.exemptions
+        .some(({ user }) => user && user === this._hass?.user?.id);
+      if (confirmation && !exempt) {
+        const message = typeof confirmation === 'object' && confirmation.text
+          ? confirmation.text
+          : 'Are you sure?';
+        if (!window.confirm(message)) return;
+      }
+
       if (type === 'toggle') return this.toggle(definition.entity || entityId);
       if (type === 'more-info' || type === 'more_info') return moreInfo(this, definition.entity || entityId);
       if (type === 'navigate') {
         const path = definition.navigation_path || definition.path;
-        if (path) window.history.pushState({}, '', path);
+        return navigate(path, Boolean(definition.navigation_replace));
+      }
+      if (type === 'url') {
+        const path = definition.url_path || definition.url;
+        if (path) window.open(path, '_blank', 'noopener');
         return;
       }
-      if (type === 'call-service' || type === 'call_service') {
-        const [domain, serviceName] = String(definition.service || '').split('.', 2);
-        if (!domain || !serviceName) return notify(this, `Invalid service action: ${definition.service || ''}`);
-        return this.service(domain, serviceName, {
-          ...(definition.data || definition.service_data || {}),
-          ...(definition.entity ? { entity_id:definition.entity } : {}),
-        });
+      if (type === 'assist') {
+        const options = {
+          pipeline_id:definition.pipeline_id || 'last_used',
+          start_listening:Boolean(definition.start_listening),
+        };
+        const external = this._hass?.auth?.external;
+        if (external?.config?.hasAssist) {
+          external.fireMessage({ type:'assist/show', payload:options });
+          return;
+        }
+        this.dispatchEvent(new CustomEvent('show-dialog', {
+          detail:{ dialogTag:'ha-voice-command-dialog', dialogParams:options },
+          bubbles:true,
+          composed:true,
+        }));
+        return;
+      }
+      if (type === 'perform-action' || type === 'perform_action') {
+        const service = definition.perform_action;
+        const [domain, serviceName] = String(service || '').split('.', 2);
+        if (!domain || !serviceName) return notify(this, `Invalid service action: ${service || ''}`);
+        return this.service(domain, serviceName, definition.data || {}, definition.target);
       }
       return notify(this, `Unsupported card action: ${type}`);
     }
@@ -433,12 +476,19 @@
       card.addEventListener('click', (event) => {
         if (event.target.closest('[data-control]')) return;
         if (this._held) { this._held = false; return; }
+        const doubleTapAction = this.config?.double_tap_action;
         if (event.detail === 2) {
-          clearTimeout(this._clickTimer);
-          this.runAction(this.config?.double_tap_action, undefined, detailEntity?.());
+          if (doubleTapAction != null) {
+            clearTimeout(this._clickTimer);
+            this.runAction(doubleTapAction, undefined, detailEntity?.());
+          }
           return;
         }
         if (event.detail === 0) {
+          this.runAction(this.config?.tap_action, () => tap?.(event), detailEntity?.());
+          return;
+        }
+        if (doubleTapAction == null) {
           this.runAction(this.config?.tap_action, () => tap?.(event), detailEntity?.());
           return;
         }
@@ -452,7 +502,7 @@
         if (event.target !== card || event.repeat) return;
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
-          tap?.(event);
+          this.runAction(this.config?.tap_action, () => tap?.(event), detailEntity?.());
         }
       });
     }
@@ -651,15 +701,15 @@
 
       if (!state || state.state !== 'on') return 0;
 
-      const raw = Number(state.attributes?.brightness);
+      const raw = Number(state.attributes?.brightness_percent);
 
       /*
-       * A few integrations report "on" before a brightness attribute arrives.
+       * A few integrations report "on" before a brightness percentage arrives.
        * Treat that as fully lit instead of visually fading the card to 0%.
        */
       if (!Number.isFinite(raw)) return 100;
 
-      return clamp(Math.round((raw / 255) * 100), 0, 100);
+      return clamp(Math.round(raw), 0, 100);
     }
 
     applyBrightnessVisual(value) {
@@ -1026,10 +1076,10 @@
         : 'Unavailable';
 
       const usesActiveTemplate =
-        typeof this.config.active_template === 'string' &&
-        this.config.active_template.trim() !== '';
+        this.config.active_template != null &&
+        String(this.config.active_template).trim() !== '';
       const isActive = usesActiveTemplate
-        ? templateBoolean(this._activeTemplateResult)
+        ? templateBoolean(this._activeTemplateIsDynamic ? this._activeTemplateResult : this.config.active_template)
         : active(state);
       const sensorAccent = isActive
         ? configuredColor(this.config, 'active_color', [125,221,210])
@@ -1575,12 +1625,7 @@
     navigate() {
       const path = String(this.config.navigation_path || '').trim();
       if (!path) return;
-      if (/^https?:\/\//i.test(path)) {
-        window.location.href = path;
-        return;
-      }
-      history.pushState(null, '', path);
-      window.dispatchEvent(new CustomEvent('location-changed'));
+      navigate(path);
     }
 
     update() {

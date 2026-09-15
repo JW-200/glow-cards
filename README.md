@@ -22,7 +22,8 @@ All cards can be configured through YAML and include a Home Assistant visual edi
 
 The light, dimmable-light, and sensor cards support Home Assistant-style
 `tap_action`, `double_tap_action`, and `hold_action` overrides. Supported actions
-include `toggle`, `more-info`, `navigate`, `call-service`, and `none`.
+include `toggle`, `more-info`, `navigate`, `url`, `assist`, `perform-action`, and
+`none`.
 
 ---
 
