@@ -59,6 +59,10 @@ views:
             icon: mdi:view-dashboard
             color: "{{ '#7489ff' }}"
             navigation_path: /glow-cards/native
+          - type: custom:vacuum-card
+            name: Demo vacuum
+            sensors_entity: sensor.outside_humidity
+            filter_entity: sensor.outside_temperature
   - title: Native cards
     path: native
     type: sections

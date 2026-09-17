@@ -1968,3 +1968,118 @@
     drop-shadow(0 1px 2px rgba(0,0,0,.42))
     drop-shadow(0 0 5px rgba(var(--accent-rgb),.62)) !important;
 }
+
+/* Vacuum dock/consumable card. Indicators exist only for configured entities. */
+:host(:is(reference-vacuum-card, vacuum-card)) .card.vacuum-card {
+  grid-template-columns:52px minmax(0,1fr) !important;
+  grid-template-rows:44px 48px !important;
+  align-content:end !important;
+  row-gap:4px !important;
+  padding-bottom:11px !important;
+}
+:host(:is(reference-vacuum-card, vacuum-card)) .vacuum-card > .icon-shell {
+  grid-column:1 !important;
+  grid-row:1 !important;
+  align-self:center !important;
+  justify-self:center !important;
+}
+:host(:is(reference-vacuum-card, vacuum-card)) .vacuum-card > .content {
+  grid-column:2 !important;
+  grid-row:1 !important;
+}
+:host(:is(reference-vacuum-card, vacuum-card)) .vacuum-indicators {
+  grid-column:1 / -1;
+  grid-row:2;
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+  gap:4px;
+  min-width:0;
+  overflow:visible;
+  /* Reserve room so circular reset badges stay inside the control row. */
+  padding:2px 7px 7px;
+}
+:host(:is(reference-vacuum-card, vacuum-card)) .vacuum-indicator {
+  position:relative;
+  /* Let all eight optional indicators fit in a normal section card. */
+  flex:1 1 20px;
+  width:100%;
+  max-width:30px;
+  min-width:20px;
+  height:30px;
+  display:grid;
+  place-items:center;
+  padding:0;
+  overflow:visible;
+  color:rgb(var(--accent-rgb));
+  background:
+    radial-gradient(circle at 35% 28%,rgba(var(--accent-rgb),.12),transparent 38%),
+    linear-gradient(145deg,rgba(24,30,39,.98),rgba(7,11,17,.99));
+  border:2px solid rgb(var(--accent-rgb));
+  border-radius:50%;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.09),
+    0 0 0 1px rgba(var(--accent-rgb),.16),
+    0 0 8px rgba(var(--accent-rgb),.82),
+    0 0 17px rgba(var(--accent-rgb),.38),
+    0 4px 9px rgba(0,0,0,.36);
+  cursor:pointer;
+}
+:host(:is(reference-vacuum-card, vacuum-card)) .vacuum-indicator > ha-icon:first-child {
+  --mdc-icon-size:18px;
+  width:18px;
+  height:18px;
+  position:relative;
+  z-index:2;
+}
+:host(:is(reference-vacuum-card, vacuum-card)) .vacuum-indicator .reset-mark {
+  position:absolute;
+  right:-7px;
+  bottom:-7px;
+  width:18px;
+  height:18px;
+  min-width:18px;
+  min-height:18px;
+  border-width:1px;
+  z-index:2;
+}
+:host(:is(reference-vacuum-card, vacuum-card)) .vacuum-indicator .reset-mark ha-icon {
+  --mdc-icon-size:11px;
+  width:11px;
+  height:11px;
+}
+:host(:is(reference-vacuum-card, vacuum-card)) .card:not(.active) .vacuum-indicator {
+  border-color:rgba(var(--accent-rgb),.22);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.09),0 4px 9px rgba(0,0,0,.36);
+}
+:host(:is(reference-vacuum-card, vacuum-card)) .card .vacuum-indicator.reset-required {
+  color:rgb(var(--accent-rgb));
+  border-color:rgb(var(--accent-rgb));
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.09),
+    0 0 0 1px rgba(var(--accent-rgb),.16),
+    0 0 8px rgba(var(--accent-rgb),.82),
+    0 0 17px rgba(var(--accent-rgb),.38),
+    0 4px 9px rgba(0,0,0,.36);
+}
+:host(:is(reference-vacuum-card, vacuum-card)) .vacuum-indicator .reset-mark {
+  /* The reset affordance stays quiet; only an active status icon glows. */
+  color:rgb(var(--accent-rgb));
+  border-color:rgba(var(--accent-rgb),.22);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.09),0 4px 9px rgba(0,0,0,.36);
+}
+:host(:is(reference-vacuum-card, vacuum-card)) .vacuum-indicator.reset-required .reset-mark ha-icon {
+  color:rgb(var(--accent-rgb));
+  filter:none;
+}
+:host(:is(reference-vacuum-card, vacuum-card)) .vacuum-indicator.unavailable { opacity:.42; }
+:host(:is(reference-vacuum-card, vacuum-card)) .vacuum-indicator:focus-visible { outline:2px solid rgb(var(--accent-rgb)); outline-offset:2px; }
+
+/* Keep the vacuum glyph centered in its full two-row column even when the
+   host's responsive grid rules are active. */
+.card.vacuum-card > .icon-shell {
+  grid-column:1 !important;
+  grid-row:1 !important;
+  align-self:center !important;
+  justify-self:center !important;
+}

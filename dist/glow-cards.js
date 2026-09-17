@@ -219,6 +219,13 @@
     navigate: 'mdi:arrow-right',
   };
 
+  // Icons shared by optional vacuum dock and consumable indicators.
+  Object.assign(ICONS, {
+    vacuum: 'mdi:robot-vacuum', cleanWater: 'mdi:water-check', dirtyWater: 'mdi:water-alert',
+    sensors: 'mdi:radar', mainBrush: 'mdi:brush', sideBrush: 'mdi:brush-variant',
+    filter: 'mdi:air-filter', strainer: 'mdi:filter-variant', mopBrush: 'mdi:roller-brush', reset: 'mdi:restart',
+  });
+
   class ReferenceCardBase extends HTMLElement {
     constructor() {
       super();
@@ -241,7 +248,9 @@
       if (!previous || previous.connection !== next?.connection || previous.locale !== next?.locale || previous.config !== next?.config) {
         return true;
       }
-      const entityIds = [this.config?.entity, this.config?.battery_entity].filter(Boolean);
+      const entityIds = Object.entries(this.config || {})
+        .filter(([key, value]) => (key === 'entity' || key.endsWith('_entity')) && typeof value === 'string' && value)
+        .map(([, value]) => value);
       return entityIds.some((entityId) => previous.states?.[entityId] !== next?.states?.[entityId]);
     }
 
@@ -431,6 +440,24 @@
         return this.service(domain, serviceName, definition.data || {}, definition.target);
       }
       return notify(this, `Unsupported card action: ${type}`);
+    }
+
+    async confirm(title, text, confirmText = 'Reset') {
+      // Home Assistant exposes its standard dialog helper to custom cards. Use
+      // it when available, with a browser-confirm fallback for older frontend
+      // versions where the helper is not yet exposed.
+      try {
+        const helpers = await window.loadCardHelpers?.();
+        if (typeof helpers?.showConfirmationDialog === 'function') {
+          return await helpers.showConfirmationDialog(this, {
+            title, text, confirmText,
+            dismissText: this._hass?.localize?.('ui.common.cancel') || 'Cancel',
+          });
+        }
+      } catch (error) {
+        console.debug('[Glow] Native confirmation dialog unavailable', error);
+      }
+      return window.confirm(`${title}\n\n${text}`);
     }
 
     bindCard(card, tap, detailEntity = () => this.config?.entity) {
@@ -1593,6 +1620,106 @@
   }
 
 
+  class ReferenceVacuumCard extends ReferenceCardBase {
+    setConfig(config) {
+      if (!config) throw new Error('Reference Vacuum Card requires a configuration');
+      this.config = { ...config };
+      this.render();
+      this.update();
+    }
+
+    render() {
+      this.shadowRoot.innerHTML = `
+        <div class="card grid-2-row glow vacuum-card">
+          <div class="icon-shell"><ha-icon class="main-icon" icon="${ICONS.vacuum}"></ha-icon></div>
+          <div class="content"><div class="name"></div><div class="state"></div></div>
+          <div class="vacuum-indicators" role="list"></div>
+        </div>`;
+      attachStyles(this.shadowRoot);
+      const card = this.shadowRoot.querySelector('.card');
+      this.bindCard(card, () => moreInfo(this, this.config?.entity), () => this.config?.entity);
+      this._els = { card, name:this.shadowRoot.querySelector('.name'), state:this.shadowRoot.querySelector('.state'), indicators:this.shadowRoot.querySelector('.vacuum-indicators') };
+    }
+
+    indicatorDefinitions() {
+      return [
+        ['clean_water_entity', 'clean_water', 'Clean water', ICONS.cleanWater],
+        ['dirty_water_entity', 'dirty_water', 'Dirty water', ICONS.dirtyWater],
+        ['sensors_entity', 'sensors_reset_entity', 'Sensors', ICONS.sensors],
+        ['main_brush_entity', 'main_brush_reset_entity', 'Main brush', ICONS.mainBrush],
+        ['side_brush_entity', 'side_brush_reset_entity', 'Side brush', ICONS.sideBrush],
+        ['filter_entity', 'filter_reset_entity', 'Filter', ICONS.filter],
+        ['strainer_entity', 'strainer_reset_entity', 'Strainer', ICONS.strainer],
+        ['mop_brush_entity', 'mop_brush_reset_entity', 'Mop brush', ICONS.mopBrush],
+      ];
+    }
+
+    resetRequired(entity, resetEntityId) {
+      if (!entity) return false;
+      const value = String(entity.state ?? '').trim().toLowerCase();
+      const numericValue = Number(value);
+      if (value !== '' && Number.isFinite(numericValue)) return numericValue <= 0;
+      return ['on', 'true', 'required', 'needs_reset', 'reset_required', 'expired', 'replace'].includes(value);
+    }
+
+    update() {
+      const { card, name, state, indicators } = this._els || {};
+      if (!card) return;
+      const vacuum = this.entity();
+      const configured = this.indicatorDefinitions().filter(([entityField]) => this.config?.[entityField]);
+      setAccent(card, configuredColor(this.config, 'active_color', [95, 212, 190]), configuredColor(this.config, 'secondary_color', [112, 151, 255]));
+      name.textContent = this.config?.name || this.config?.friendly_name || vacuum?.attributes?.friendly_name || 'Vacuum';
+      state.textContent = vacuum ? this.stateText(vacuum) : `${configured.length} indicator${configured.length === 1 ? '' : 's'}`;
+      card.classList.toggle('active', active(vacuum));
+      card.classList.toggle('unavailable', Boolean(vacuum) && !available(vacuum));
+      card.setAttribute('aria-label', `${name.textContent}: ${state.textContent}`);
+      indicators.replaceChildren(...configured.map(([entityField, resetField, label, icon]) => {
+        const entityId = this.config[entityField];
+        const resetEntityId = this.config[resetField];
+        const entity = this.entity(entityId);
+        const needsReset = this.resetRequired(entity, resetEntityId);
+        const button = document.createElement('button');
+        button.type = 'button'; button.className = 'vacuum-indicator'; button.dataset.control = '';
+        button.setAttribute('role', 'listitem');
+        const value = entity ? this.stateText(entity) : 'Unavailable';
+        button.setAttribute('aria-label', `${label}: ${value}${resetEntityId ? '. Reset' : ''}`);
+        button.title = `${label}: ${value}${resetEntityId ? ' (click to reset)' : ''}`;
+        button.innerHTML = `<ha-icon icon="${icon}"></ha-icon>${resetEntityId ? `<span class="badge-face reset-mark" aria-hidden="true"><ha-icon icon="${ICONS.reset}"></ha-icon></span>` : ''}`;
+        button.classList.toggle('unavailable', !available(entity));
+        button.classList.toggle('reset-required', needsReset);
+        const reset = async () => {
+          const approved = await this.confirm(
+            `Reset ${label}?`,
+            `This resets the ${label.toLowerCase()} maintenance counter.`,
+            this._hass?.localize?.('ui.common.confirm') || 'Reset',
+          );
+          if (approved) this.service('button', 'press', { entity_id:resetEntityId });
+        };
+        button.addEventListener('click', (event) => {
+          event.stopPropagation();
+          if (!resetEntityId) return moreInfo(this, entityId);
+          this._indicatorClickTimers ||= new WeakMap();
+          if (this._indicatorClickTimers.has(button)) return;
+          this._indicatorClickTimers.set(button, setTimeout(() => {
+            this._indicatorClickTimers.delete(button);
+            moreInfo(this, entityId);
+          }, 250));
+        });
+        button.addEventListener('dblclick', (event) => {
+          event.stopPropagation();
+          if (!resetEntityId) return;
+          const timer = this._indicatorClickTimers?.get(button);
+          if (timer) clearTimeout(timer);
+          this._indicatorClickTimers?.delete(button);
+          reset();
+        });
+        return button;
+      }));
+    }
+
+    static getStubConfig() { return { name:'Vacuum' }; }
+  }
+
   class ReferenceNavigationCard extends ReferenceCardBase {
     setConfig(config) {
       if (!config?.navigation_path) throw new Error('Reference Navigation Card requires navigation_path');
@@ -1689,6 +1816,19 @@
         { name:'idle_color', selector:{ color_rgb:{} } },
         { name:'off_color', selector:{ color_rgb:{} } },
       ];
+      if (this.kind === 'vacuum') return [
+        { name:'entity', selector:{ entity:{ domain:'vacuum' } } },
+        { name:'name', selector:{ text:{} } },
+        { name:'clean_water_entity', selector:{ entity:{} } },
+        { name:'dirty_water_entity', selector:{ entity:{} } },
+        { name:'sensors_entity', selector:{ entity:{} } }, { name:'sensors_reset_entity', selector:{ entity:{ domain:'button' } } },
+        { name:'main_brush_entity', selector:{ entity:{} } }, { name:'main_brush_reset_entity', selector:{ entity:{ domain:'button' } } },
+        { name:'side_brush_entity', selector:{ entity:{} } }, { name:'side_brush_reset_entity', selector:{ entity:{ domain:'button' } } },
+        { name:'filter_entity', selector:{ entity:{} } }, { name:'filter_reset_entity', selector:{ entity:{ domain:'button' } } },
+        { name:'strainer_entity', selector:{ entity:{} } }, { name:'strainer_reset_entity', selector:{ entity:{ domain:'button' } } },
+        { name:'mop_brush_entity', selector:{ entity:{} } }, { name:'mop_brush_reset_entity', selector:{ entity:{ domain:'button' } } },
+        { name:'active_color', selector:{ color_rgb:{} } },
+      ];
       if (this.kind === 'navigation') return [
         { name:'navigation_path', required:true, selector:{ text:{} } },
         { name:'name', selector:{ text:{} } },
@@ -1708,7 +1848,7 @@
         this._form.addEventListener('value-changed', (event) => {
           event.stopPropagation();
           const next = { ...this._config, ...event.detail.value };
-          for (const key of ['name','friendly_name','subtitle','subtext','icon','icon_on','icon_off','icon_active','icon_inactive','subicon','icon_heating','icon_cooling','icon_idle','unit','battery_entity','active_template','temperature_step','navigation_path','color','active_color','inactive_color','home_color','zone_color','away_color','unknown_color','heating_color','cooling_color','idle_color','off_color','tap_action','double_tap_action','hold_action']) {
+          for (const key of ['name','friendly_name','subtitle','subtext','icon','icon_on','icon_off','icon_active','icon_inactive','subicon','icon_heating','icon_cooling','icon_idle','unit','battery_entity','active_template','temperature_step','navigation_path','color','active_color','inactive_color','home_color','zone_color','away_color','unknown_color','heating_color','cooling_color','idle_color','off_color','tap_action','double_tap_action','hold_action', 'clean_water_entity','dirty_water_entity','sensors_entity','sensors_reset_entity','main_brush_entity','main_brush_reset_entity','side_brush_entity','side_brush_reset_entity','filter_entity','filter_reset_entity','strainer_entity','strainer_reset_entity','mop_brush_entity','mop_brush_reset_entity']) {
             if (next[key] === '' || next[key] == null) delete next[key];
           }
           this._config = next;
@@ -1757,6 +1897,14 @@
         cooling_color:'Cooling color',
         idle_color:'Idle color',
         off_color:'Off color',
+        clean_water_entity:'Clean-water entity',
+        dirty_water_entity:'Dirty-water entity',
+        sensors_entity:'Sensors-life entity', sensors_reset_entity:'Sensors reset button',
+        main_brush_entity:'Main-brush-life entity', main_brush_reset_entity:'Main-brush reset button',
+        side_brush_entity:'Side-brush-life entity', side_brush_reset_entity:'Side-brush reset button',
+        filter_entity:'Filter-life entity', filter_reset_entity:'Filter reset button',
+        strainer_entity:'Strainer-life entity', strainer_reset_entity:'Strainer reset button',
+        mop_brush_entity:'Mop-brush-life entity', mop_brush_reset_entity:'Mop-brush reset button',
       }[schema.name] || schema.name);
     }
   }
@@ -1780,6 +1928,11 @@
     { kind:'thermostat', reference:'reference-thermostat-card', alias:'thermostat-card', klass:ReferenceThermostatCard, name:'Reference · Thermostat', description:'Climate card with target temperature controls' },
     { kind:'navigation', reference:'reference-navigation-card', alias:'navigation-card', klass:ReferenceNavigationCard, name:'Reference · Navigation', description:'Navigation card with templated color' },
   ];
+  definitions.splice(definitions.length - 1, 0, {
+    kind:'vacuum', reference:'reference-vacuum-card', alias:'vacuum-card', klass:ReferenceVacuumCard,
+    name:'Reference Vacuum', description:'Vacuum dock and consumable indicators',
+  });
+
   for (const definition of definitions) {
     definition.klass.getConfigElement = () => editorFor(definition.kind);
     define(definition.reference, definition.klass);
