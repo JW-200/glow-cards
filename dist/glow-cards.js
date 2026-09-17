@@ -222,8 +222,8 @@
   // Icons shared by optional vacuum dock and consumable indicators.
   Object.assign(ICONS, {
     vacuum: 'mdi:robot-vacuum', cleanWater: 'mdi:water-check', dirtyWater: 'mdi:water-alert',
-    sensors: 'mdi:radar', mainBrush: 'mdi:brush', sideBrush: 'mdi:brush-variant',
-    filter: 'mdi:air-filter', strainer: 'mdi:filter-variant', mopBrush: 'mdi:roller-brush', reset: 'mdi:restart',
+    sensors: 'mdi:radar', mainBrush: 'mdi:brush-variant', sideBrush: 'mdi:brush',
+    filter: 'mdi:air-filter', strainer: 'mdi:filter-variant', mopBrush: 'mdi:brush', reset: 'mdi:restart',
   });
 
   class ReferenceCardBase extends HTMLElement {
@@ -1642,7 +1642,7 @@
     }
 
     indicatorDefinitions() {
-      return [
+      return this._indicatorDefinitions ||= [
         ['clean_water_entity', 'clean_water', 'Clean water', ICONS.cleanWater],
         ['dirty_water_entity', 'dirty_water', 'Dirty water', ICONS.dirtyWater],
         ['sensors_entity', 'sensors_reset_entity', 'Sensors', ICONS.sensors],
@@ -1716,6 +1716,8 @@
         return button;
       }));
     }
+
+    getGridOptions() { return { rows:2, columns:12, min_rows:2, max_rows:2, min_columns:12 }; }
 
     static getStubConfig() { return { name:'Vacuum' }; }
   }
