@@ -177,6 +177,7 @@
 
   const supportsBrightness = (state) => Boolean(state && (
     state.attributes?.brightness_percent != null ||
+    state.attributes?.brightness != null ||
     state.attributes?.supported_color_modes?.some((mode) => !['onoff', 'unknown'].includes(mode))
   ));
   const templateBoolean = (value) => {
@@ -582,7 +583,7 @@
       if (!state || !card) return;
       const isOn = active(state);
       const isAvailable = available(state);
-      setAccent(card, configuredColor(this.config, isOn ? 'active_color' : 'inactive_color', isOn ? [255,218,120] : [132,149,170]));
+      setAccent(card, configuredColor(this.config, isOn ? 'active_color' : 'inactive_color', isOn ? lightColor(state) : [132,149,170]));
       card.classList.toggle('active', isOn);
       card.classList.toggle('unavailable', !isAvailable);
       card.setAttribute('aria-pressed', String(isOn));
@@ -728,15 +729,16 @@
 
       if (!state || state.state !== 'on') return 0;
 
-      const raw = Number(state.attributes?.brightness_percent);
+      const percentage = Number(state.attributes?.brightness_percent);
+      if (Number.isFinite(percentage)) return clamp(Math.round(percentage), 0, 100);
+
+      const raw = Number(state.attributes?.brightness);
+      if (Number.isFinite(raw)) return clamp(Math.round((raw / 255) * 100), 0, 100);
 
       /*
-       * A few integrations report "on" before a brightness percentage arrives.
-       * Treat that as fully lit instead of visually fading the card to 0%.
+       * A few integrations report 'on' before brightness arrives. Treat that as fully lit.
        */
-      if (!Number.isFinite(raw)) return 100;
-
-      return clamp(Math.round(raw), 0, 100);
+      return 100;
     }
 
     applyBrightnessVisual(value) {
@@ -863,7 +865,7 @@
         configuredColor(
           this.config,
           isOn ? 'active_color' : 'inactive_color',
-          isOn ? [255,218,120] : [132,149,170]
+          isOn ? lightColor(state) : [132,149,170]
         )
       );
 
@@ -1667,7 +1669,10 @@
       if (!card) return;
       const vacuum = this.entity();
       const configured = this.indicatorDefinitions().filter(([entityField]) => this.config?.[entityField]);
-      setAccent(card, configuredColor(this.config, 'active_color', [95, 212, 190]), configuredColor(this.config, 'secondary_color', [112, 151, 255]));
+      // The card and inactive indicators stay teal; glowing indicators use the configurable active color.
+      setAccent(card, [95, 212, 190], configuredColor(this.config, 'secondary_color', [112, 151, 255]));
+      card.style.setProperty('--vacuum-inactive-rgb', '95,212,190');
+      card.style.setProperty('--vacuum-active-rgb', configuredColor(this.config, 'active_color', [255, 145, 138]));
       name.textContent = this.config?.name || this.config?.friendly_name || vacuum?.attributes?.friendly_name || 'Vacuum';
       state.textContent = vacuum ? this.stateText(vacuum) : `${configured.length} indicator${configured.length === 1 ? '' : 's'}`;
       card.classList.toggle('active', active(vacuum));
