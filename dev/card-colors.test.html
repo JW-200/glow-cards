@@ -1,0 +1,144 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Glow color checks</title>
+<pre id="result">Running...</pre>
+<script type="module">
+import '../dist/glow-cards.js?dev=color-test';
+const subscriptions = [];
+const connection = {
+  subscribeMessage(callback, message) {
+    const subscription = { callback, message, stopped:false };
+    subscriptions.push(subscription);
+    return Promise.resolve(() => { subscription.stopped = true; });
+  },
+};
+const states = {
+  'light.test': { entity_id:'light.test', state:'on', attributes:{ rgb_color:[20, 180, 240], brightness_percent:100, supported_color_modes:['rgb'] } },
+  'person.test': { entity_id:'person.test', state:'home', attributes:{} },
+  'sensor.test': { entity_id:'sensor.test', state:'on', attributes:{} },
+  'climate.test': { entity_id:'climate.test', state:'heat', attributes:{ hvac_action:'heating', temperature:22, current_temperature:20, min_temp:7, max_temp:35, hvac_modes:['heat','off'] } },
+};
+const calls = [];
+const hass = { states, connection, callService: (...args) => { calls.push(args); return Promise.resolve(); } };
+const settle = () => new Promise(resolve => setTimeout(resolve, 10));
+let checks = 0;
+const check = (condition, message) => { if (!condition) throw new Error(message); checks++; };
+const accent = card => card.shadowRoot.querySelector('.card').style.getPropertyValue('--accent-rgb');
+function create(type, config) {
+  const card = document.createElement(type);
+  card.setConfig(config);
+  card.hass = hass;
+  document.body.append(card);
+  return card;
+}
+try {
+  for (const type of ['basic-light-card', 'brightness-light-card']) {
+    const card = create(type, { entity:'light.test' });
+    check(accent(card) === '20,180,240', `${type}: entity color`);
+    card.setConfig({ entity:'light.test', active_color:'#ff0088' });
+    check(accent(card) === '255,0,136', `${type}: explicit override`);
+    card.setConfig({ entity:'light.test', active_color:[255,0,0], state_colors:{ on:'#00ff00' } });
+    check(accent(card) === '255,0,0', `${type}: removed state_colors is ignored`);
+    if (type.startsWith('brightness')) {
+      check(!card.shadowRoot.querySelector('.switch'), 'No dimmer switch');
+      await card.commit(60);
+      check(calls.at(-1)[1] === 'turn_on' && calls.at(-1)[2].brightness_pct === 60, 'Brightness service');
+      await card.commit(0);
+      check(calls.at(-1)[1] === 'turn_off', 'Slider zero turns off');
+    }
+    card.remove();
+  }
+  for (const [type, entity, field, extra] of [
+    ['basic-light-card', 'light.test', 'active_color', {}],
+    ['brightness-light-card', 'light.test', 'active_color', {}],
+    ['person-picture-card', 'person.test', 'home_color', {}],
+    ['sensor-state-card', 'sensor.test', 'active_color', {}],
+    ['thermostat-card', 'climate.test', 'heating_color', {}],
+    ['navigation-card', undefined, 'color', { navigation_path:'#test' }],
+  ]) {
+    const card = create(type, { entity, ...extra, [field]:"{{ '#123456' }}" });
+    await settle();
+    const subscription = subscriptions.at(-1);
+    check(subscription.message.type === 'render_template', `${type}: HA subscription`);
+    subscription.callback({ result:'#123456' });
+    check(accent(card) === '18,52,86', `${type}: template result`);
+    subscription.callback({ result:'[240, 60, 10]' });
+    check(accent(card) === '240,60,10', `${type}: live RGB update`);
+    subscription.callback({ result:'red' });
+    check(accent(card) === '255,0,0', `${type}: named color from valid Jinja result`);
+    card.remove();
+    await settle();
+    check(subscription.stopped, `${type}: unsubscribe`);
+    subscription.callback({ result:'#000000' });
+    check(accent(card) === '255,0,0', `${type}: ignore stale result`);
+    document.body.append(card);
+    await settle();
+    check(subscriptions.at(-1) !== subscription, `${type}: resubscribe on reconnect`);
+    card.remove();
+  }
+  const card = create('basic-light-card', { entity:'light.test', active_color:'{{ [1, 2, 3] }}' });
+  await settle();
+  const subscription = subscriptions.at(-1);
+  subscription.callback({ result:[1,2,3] });
+  check(accent(card) === '1,2,3', 'Named color template');
+  subscription.callback({ error:'Invalid template' });
+  check(accent(card) === '20,180,240', 'Template error uses entity color');
+  card.setConfig({ entity:'light.test', active_color:'#abcdef' });
+  await settle();
+  check(subscription.stopped, 'Reconfiguration unsubscribes');
+  subscription.callback({ result:'#000000' });
+  check(accent(card) === '171,205,239', 'Reconfiguration ignores stale result');
+  card.remove();
+  const sensor = create('sensor-state-card', {
+    entity:'sensor.test',
+    active_template:"{{ is_state('input_boolean.glow_sensor_active', 'on') }}",
+  });
+  await settle();
+  const activeSubscription = subscriptions.at(-1);
+  check(activeSubscription.message.template.includes('glow_sensor_active'), 'Sensor active template subscription');
+  activeSubscription.callback({ result:'false' });
+  check(!sensor.shadowRoot.querySelector('.card').classList.contains('active'), 'False template deactivates sensor');
+  activeSubscription.callback({ result:'true' });
+  check(sensor.shadowRoot.querySelector('.card').classList.contains('active'), 'True template activates sensor');
+  sensor.setConfig({ entity:'sensor.test', subicon:'mdi:chart-line' });
+  sensor.hass = hass;
+  check(
+    [...sensor.shadowRoot.querySelectorAll('.info-button > ha-icon, .info-button .compact-action ha-icon')]
+      .every(icon => icon.icon === 'mdi:chart-line'),
+    'Sensor applies configured subicon to wide and compact actions'
+  );
+  sensor.remove();
+  const subscriptionCount = subscriptions.length;
+  const constantSensor = create('sensor-state-card', {
+    entity:'sensor.test',
+    active_template:'true',
+  });
+  await settle();
+  check(subscriptions.length === subscriptionCount, 'Constant active value does not subscribe');
+  check(constantSensor.shadowRoot.querySelector('.card').classList.contains('active'), 'Constant active value is applied');
+  constantSensor.remove();
+
+  const editorFields = {
+    'basic-light-card': ['entity','name','icon_on','icon_off','active_color','inactive_color'],
+    'brightness-light-card': ['entity','name','icon_on','icon_off','active_color','inactive_color'],
+    'person-picture-card': ['entity','name','battery_entity','home_color','zone_color','away_color','unknown_color'],
+    'sensor-state-card': ['entity','name','unit','active_template','icon_active','icon_inactive','subicon','active_color'],
+    'thermostat-card': ['entity','name','temperature_step','icon_heating','icon_cooling','icon_idle','icon_off','heating_color','cooling_color','idle_color','off_color'],
+    'navigation-card': ['navigation_path','name','subtitle','icon','color'],
+  };
+  for (const [type, expected] of Object.entries(editorFields)) {
+    const editor = customElements.get(type).getConfigElement();
+    editor.setConfig({ type:`custom:${type}` });
+    const actual = editor.shadowRoot.querySelector('ha-form').schema.map(field => field.name);
+    check(JSON.stringify(actual) === JSON.stringify(expected), `${type}: simplified editor fields`);
+    for (const field of editor.shadowRoot.querySelector('ha-form').schema.filter(field => field.name === 'color' || field.name.endsWith('_color'))) {
+      check(field.selector.template && field.selector.template.preview === undefined, `${type}: ${field.name} uses Jinja editor without broken preview`);
+    }
+    const activeTemplate = editor.shadowRoot.querySelector('ha-form').schema.find(field => field.name === 'active_template');
+    if (activeTemplate) check(activeTemplate.selector.template && activeTemplate.selector.template.preview === undefined, `${type}: active state uses Jinja editor without broken preview`);
+  }
+  document.querySelector('#result').textContent = `PASS: ${checks} checks`;
+} catch (error) {
+  document.querySelector('#result').textContent = `FAIL: ${error.stack}`;
+}
+</script>

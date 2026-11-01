@@ -411,16 +411,42 @@
       .card:hover,.card:active { transform:none!important; }
     }
 
-/* reference-basic-light-card */
-:host(:is(reference-basic-light-card, basic-light-card)) .card {
-            --accent-rgb:255,190,57;
-            --accent2-rgb:111,142,204;
-            background:
-              linear-gradient(135deg,rgba(255,255,255,.08),rgba(255,255,255,.015) 28%,transparent 44%),
-              radial-gradient(120% 150% at -12% 42%,rgba(var(--accent-rgb),.10),transparent 65%),
-              radial-gradient(90% 130% at 108% -6%,rgba(103,133,190,.10),transparent 49%),
-              linear-gradient(133deg,#2a2b2c 0%,#20252b 48%,#131a22 100%);
-          }
+/* Basic light labels and toggle retain their existing scale. */
+:host(:is(reference-basic-light-card, basic-light-card)) .card .name {
+  font-weight:650;
+  letter-spacing:-.3px;
+  text-shadow:0 1px 2px rgba(0,0,0,.25);
+}
+
+:host(:is(reference-basic-light-card, basic-light-card)) .card .state {
+  color:#9cb7c8;
+  font-weight:450;
+  font-size:12px !important;
+  line-height:1.2;
+  letter-spacing:.65px;
+  text-transform:uppercase;
+}
+
+:host(:is(reference-basic-light-card, basic-light-card)) .card.active .state {
+  color:rgb(var(--accent-rgb));
+}
+
+:host(:is(reference-basic-light-card, basic-light-card)) .card .switch {
+  border-color:rgba(130,187,205,.34);
+  background:linear-gradient(180deg,#172b34,#20333b);
+  box-shadow:inset 0 1px 4px rgba(0,0,0,.38),0 1px 0 rgba(207,240,249,.06);
+}
+
+:host(:is(reference-basic-light-card, basic-light-card)) .card.active .switch {
+  border-color:rgba(var(--accent-rgb),.65);
+  box-shadow:inset 0 1px 2px rgba(255,255,255,.14),0 0 4px rgba(var(--accent-rgb),.22),0 0 10px rgba(var(--accent-rgb),.12);
+}
+
+:host(:is(reference-basic-light-card, basic-light-card)) .card .knob {
+  background:linear-gradient(145deg,#f5fbff,#d0dfe7 55%,#97afbd);
+  box-shadow:inset 0 1px 1px rgba(255,255,255,.85),0 1px 3px rgba(0,0,0,.65);
+}
+
 /* reference-brightness-light-card */
 /*
            * v19: same visual height as the other non-thermostat cards.
@@ -1493,7 +1519,7 @@
   column-gap:10px !important;
   row-gap:0 !important;
   padding:7px 11px !important;
-  border-radius:14px !important;
+  border-radius:12px !important;
 }
 .grid-1-row .icon-shell,
 .grid-1-row .avatar {
@@ -1532,7 +1558,7 @@
   min-height:124px !important;
   max-height:124px !important;
   padding:12px 16px !important;
-  border-radius:18px !important;
+  border-radius:14px !important;
 }
 .grid-2-row .icon-shell {
   width:52px !important;
@@ -2082,4 +2108,170 @@
   grid-row:1 !important;
   align-self:center !important;
   justify-self:center !important;
+}
+
+/* Shared glass finish. Geometry remains defined by the card-specific layouts. */
+:host(:not(reference-glow-cards-editor)) .card:is(.grid-1-row, .grid-2-row) {
+  --glass-edge-rgb:103,192,211;
+  --glass-wash:.035;
+  /* The masked perimeter supplies the single visible stroke. */
+  border-color:transparent;
+  background:
+    linear-gradient(180deg,rgba(223,246,255,.1),rgba(223,246,255,.015) 24%,transparent 52%),
+    radial-gradient(ellipse at 0 0,rgba(var(--glass-edge-rgb),.08),transparent 65%),
+    linear-gradient(120deg,rgba(var(--accent-rgb),var(--glass-wash)),transparent 78%),
+    linear-gradient(125deg,rgba(27,43,52,.58),rgba(12,24,31,.66) 58%,rgba(8,18,24,.76)) !important;
+  -webkit-backdrop-filter:blur(18px) saturate(135%);
+  backdrop-filter:blur(18px) saturate(135%);
+  box-shadow:
+    inset 0 1px 0 rgba(235,251,255,.2),
+    inset 1px 0 0 rgba(215,247,255,.06),
+    inset 0 -1px 0 rgba(0,0,0,.28),
+    inset 0 0 14px rgba(var(--glass-edge-rgb),.045),
+    -3px 0 14px rgba(var(--glass-edge-rgb),.08),
+    0 4px 12px rgba(0,0,0,.28) !important;
+  transition:transform .2s ease,border-color .25s ease,box-shadow .25s ease;
+}
+
+:host(:not(reference-glow-cards-editor)) .card:is(.grid-1-row, .grid-2-row).active {
+  --glass-edge-rgb:var(--accent-rgb);
+  border-color:transparent;
+  background:
+    linear-gradient(180deg,rgba(231,251,255,.12),rgba(231,251,255,.02) 24%,transparent 52%),
+    radial-gradient(ellipse 100% 160% at 0 50%,rgba(var(--accent-rgb),var(--glass-face-alpha,.15)),transparent 68%),
+    radial-gradient(ellipse 85% 120% at 100% 110%,rgba(var(--accent-rgb),var(--glass-tail-alpha,.1)),transparent 65%),
+    linear-gradient(100deg,rgba(var(--accent-rgb),var(--glass-wash-alpha,.06)),rgba(var(--accent-rgb),.025) 60%,transparent),
+    linear-gradient(125deg,rgba(24,38,45,.54),rgba(10,23,29,.64) 58%,rgba(7,16,22,.74)) !important;
+  --glass-inner-glow:
+    inset 0 1px 0 rgba(240,255,255,.26),
+    inset 1px 0 0 rgba(231,255,255,.08),
+    inset 0 -1px 0 rgba(0,0,0,.22),
+    inset 0 0 12px rgba(var(--accent-rgb),var(--glass-inner-alpha,.075)),
+    inset 8px 0 22px rgba(var(--accent-rgb),var(--glass-side-alpha,.09)),
+    inset 0 -6px 18px -8px rgba(var(--accent-rgb),var(--glass-bottom-alpha,.16));
+  box-shadow:
+    var(--glass-inner-glow),
+    0 0 10px rgba(var(--accent-rgb),var(--glass-halo1,.22)),
+    0 0 22px rgba(var(--accent-rgb),var(--glass-halo2,.1)),
+    0 5px 14px rgba(0,0,0,.22) !important;
+}
+
+/* Reflections sit above the translucent tint; the perimeter stays crisp. */
+:host(:not(reference-glow-cards-editor)) .card:is(.grid-1-row, .grid-2-row)::before {
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 320 80' fill='none'%3E%3Cg stroke='%2367c0d3' stroke-width='.65' opacity='.3'%3E%3Cpath d='M70 88C166 87 187 62 232 65S290 45 330 12'/%3E%3Cpath d='M84 90C174 88 192 65 238 68S294 49 332 20'/%3E%3Cpath d='M98 92C182 89 197 68 244 71S298 53 334 28'/%3E%3Cpath d='M112 94C190 90 202 71 250 74S302 57 336 36'/%3E%3Cpath d='M126 96C198 91 207 74 256 77S306 61 338 44'/%3E%3C/g%3E%3C/svg%3E") right bottom / auto 100% no-repeat,
+    linear-gradient(156deg,rgba(235,251,255,.13),rgba(235,251,255,.035) 28%,transparent 29% 68%,rgba(211,242,255,.035) 69%,transparent 86%);
+  background-size:auto 60px,auto;
+  opacity:.8 !important;
+}
+
+:host(:not(reference-glow-cards-editor)) .card:is(.grid-1-row, .grid-2-row)::after {
+  padding:1px;
+  background:
+    radial-gradient(ellipse at 5% 0,rgba(220,248,255,.65),transparent 42%),
+    linear-gradient(125deg,rgba(var(--glass-edge-rgb),.55),rgba(var(--glass-edge-rgb),.2) 54%,rgba(var(--glass-edge-rgb),.45));
+  filter:none;
+}
+
+:host(:not(reference-glow-cards-editor)) .card:is(.grid-1-row, .grid-2-row).active::after {
+  background:
+    radial-gradient(ellipse at 6% 0,rgba(240,255,255,.7),transparent 36%),
+    linear-gradient(115deg,rgba(var(--accent-rgb),var(--glass-edge1,1)),rgba(var(--accent-rgb),var(--glass-edge2,.72)) 25%,rgba(var(--accent-rgb),calc(var(--glass-edge2,.72) * .417)) 60%,rgba(var(--accent-rgb),var(--glass-edge3,.9)));
+  filter:none;
+}
+
+:host(:not(reference-glow-cards-editor)) .card:is(.grid-1-row, .grid-2-row) :is(.icon-shell, .fallback, .portrait) {
+  color:#9dbfce;
+  border:1px solid rgba(117,191,211,.38) !important;
+  background:transparent !important;
+  -webkit-backdrop-filter:none;
+  backdrop-filter:none;
+  box-shadow:
+    inset 0 1px 1px rgba(216,246,255,.14),
+    inset 0 -1px 2px rgba(0,0,0,.3),
+    0 2px 5px rgba(0,0,0,.2) !important;
+}
+
+:host(:not(reference-glow-cards-editor)) .card:is(.grid-1-row, .grid-2-row).active :is(.icon-shell, .fallback, .portrait) {
+  color:rgb(var(--accent-rgb)) !important;
+  border-color:rgba(var(--accent-rgb),var(--glass-icon-border,.95)) !important;
+  background:transparent !important;
+  box-shadow:
+    inset 0 1px 0 rgba(231,255,255,.2),
+    0 0 2px rgba(var(--accent-rgb),.32),
+    -2px 0 10px rgba(var(--accent-rgb),var(--glass-icon-halo1,.38)),
+    0 0 22px rgba(var(--accent-rgb),var(--glass-icon-halo2,.14)),
+    0 2px 5px rgba(0,0,0,.2) !important;
+}
+
+:host(:not(reference-glow-cards-editor)) .card:is(.grid-1-row, .grid-2-row) :is(.icon-shell, .fallback, .portrait) ha-icon {
+  color:inherit;
+  filter:drop-shadow(0 1px 1px rgba(0,0,0,.3));
+}
+
+:host(:not(reference-glow-cards-editor)) .card:is(.grid-1-row, .grid-2-row).active :is(.icon-shell, .fallback, .portrait) ha-icon {
+  filter:drop-shadow(0 1px 1px rgba(0,0,0,.3)) drop-shadow(0 0 4px rgba(var(--accent-rgb),var(--glass-glyph-glow,.5))) !important;
+}
+
+@media (hover:hover) {
+  :host(:not(reference-glow-cards-editor)) .card:is(.grid-1-row, .grid-2-row):not(.unavailable):hover {
+    border-color:transparent;
+    box-shadow:inset 0 1px 0 rgba(235,251,255,.26),inset 1px 0 0 rgba(215,247,255,.08),inset 0 -1px 0 rgba(0,0,0,.28),inset 0 0 14px rgba(var(--glass-edge-rgb),.045),-3px 0 18px rgba(var(--glass-edge-rgb),.14),0 6px 16px rgba(0,0,0,.3) !important;
+  }
+  :host(:not(reference-glow-cards-editor)) .card:is(.grid-1-row, .grid-2-row).active:not(.unavailable):hover {
+    box-shadow:
+      var(--glass-inner-glow),
+      0 0 12px rgba(var(--accent-rgb),calc(var(--glass-halo1,.22) + .04)),
+      0 0 24px rgba(var(--accent-rgb),calc(var(--glass-halo2,.1) + .02)),
+      0 6px 16px rgba(0,0,0,.26) !important;
+  }
+}
+
+/* Preserve dimmer illumination as brightness changes. */
+:host(:is(reference-brightness-light-card, brightness-light-card)) .card {
+  --glass-face-alpha:var(--dim-radial);
+  --glass-tail-alpha:var(--dim-a3);
+  --glass-wash-alpha:calc(var(--dim-a1) * .33);
+  --glass-inner-alpha:calc(var(--dim-a1) * .42);
+  --glass-side-alpha:calc(var(--dim-a2) * .64);
+  --glass-bottom-alpha:calc(var(--dim-a1) * .89);
+  --glass-edge1:var(--dim-edge1);
+  --glass-edge2:var(--dim-edge2);
+  --glass-edge3:var(--dim-edge3);
+  --glass-halo1:var(--dim-card-glow1);
+  --glass-halo2:var(--dim-card-glow2);
+  --glass-icon-border:min(.95,calc(var(--dim-icon-border) * 1.53));
+  --glass-icon-halo1:var(--dim-icon-glow1);
+  --glass-icon-halo2:var(--dim-icon-glow2);
+  --glass-glyph-glow:var(--dim-icon-filter);
+}
+
+/* Inactive climate, vacuum, and away states retain their status hues. */
+:host(:not(reference-glow-cards-editor)) .card:is(.thermostat-card, .vacuum-card, .person-away) {
+  --glass-edge-rgb:var(--accent-rgb);
+}
+:host(:not(reference-glow-cards-editor)) .card:is(.thermostat-card, .vacuum-card, .person-away):not(.active) :is(.icon-shell, .fallback, .portrait) {
+  color:rgb(var(--glass-edge-rgb));
+  border-color:rgba(var(--glass-edge-rgb),.38) !important;
+}
+
+/* Secondary control surfaces use the same translucent glass without changing
+   their dimensions, border widths, or status indicators. */
+:host(:is(reference-thermostat-card, thermostat-card)) .card.thermostat-card :is(.temp-button, .target-display) {
+  border-radius:8px !important;
+  background:
+    linear-gradient(155deg,rgba(231,251,255,.09),transparent 48%),
+    linear-gradient(125deg,rgba(var(--accent-rgb),.05),rgba(7,16,22,.36)) !important;
+  box-shadow:inset 0 1px 0 rgba(231,251,255,.14),0 3px 8px rgba(0,0,0,.18);
+}
+:host(:is(reference-thermostat-card, thermostat-card)) .card.thermostat-card .temp-down {
+  border-radius:18px 8px 8px 18px !important;
+}
+:host(:is(reference-thermostat-card, thermostat-card)) .card.thermostat-card .temp-up {
+  border-radius:8px 18px 18px 8px !important;
+}
+:host(:is(reference-vacuum-card, vacuum-card)) .card.vacuum-card .vacuum-indicator {
+  background:
+    linear-gradient(155deg,rgba(231,251,255,.09),transparent 48%),
+    linear-gradient(125deg,rgba(24,38,45,.38),rgba(7,16,22,.5));
 }

@@ -1,0 +1,191 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Glow compact layout checks</title>
+<style>body { background:#20242a; color:white; } .sample { margin:20px; }</style>
+<pre id="result">Running...</pre>
+<script type="module">
+import '../dist/glow-cards.js?dev=layout-test';
+const calls = [];
+const hass = {
+  states: {
+    'light.test': { entity_id:'light.test', state:'on', attributes:{ friendly_name:'Test light', brightness_percent:100, supported_color_modes:['brightness'] } },
+    'sensor.test': { entity_id:'sensor.test', state:'21', attributes:{ friendly_name:'Temperature', unit_of_measurement:'°C' } },
+    'person.test': { entity_id:'person.test', state:'Office', attributes:{ friendly_name:'Test person' } },
+    'zone.office': { entity_id:'zone.office', state:'0', attributes:{ friendly_name:'Office', icon:'mdi:briefcase' } },
+    'sensor.battery': { entity_id:'sensor.battery', state:'72', attributes:{ unit_of_measurement:'%', icon:'mdi:battery-charging-70' } },
+    'climate.test': { entity_id:'climate.test', state:'heat', attributes:{ hvac_action:'heating', temperature:22, current_temperature:20, min_temp:7, max_temp:35, hvac_modes:['heat','off'] } },
+  },
+  formatEntityState: state => state.state === 'eco' ? 'Eco translated' : String(state.state),
+  callService: (...args) => { calls.push(args); return Promise.resolve(); },
+};
+const checks = [];
+function check(condition, message) { if (!condition) throw new Error(message); checks.push(message); }
+try {
+  for (const width of [150, 180, 200, 201, 245, 260, 400]) {
+    for (const type of ['basic-light-card', 'brightness-light-card', 'sensor-state-card', 'person-picture-card', 'navigation-card', 'thermostat-card']) {
+      const card = document.createElement(type);
+      card.className = 'sample';
+      card.style.width = `${width}px`;
+      card.setConfig({ name:'A very long card title that must truncate with an ellipsis', subtitle:'Secondary description should not crowd compact cards', navigation_path:'#native', entity: type.startsWith('person') ? 'person.test' : type.startsWith('sensor') ? 'sensor.test' : type.startsWith('thermostat') ? 'climate.test' : 'light.test', ...(type.startsWith('person') ? { battery_entity:'sensor.battery' } : {}), ...(type.startsWith('sensor') ? { subicon:'mdi:chart-line' } : {}) });
+      card.hass = hass;
+      document.body.append(card);
+      await Promise.all([...card.shadowRoot.querySelectorAll('link')].map(link => link.sheet ? Promise.resolve() : new Promise(resolve => { link.onload = resolve; link.onerror = resolve; })));
+      await new Promise(resolve => setTimeout(resolve, 50));
+      const root = card.shadowRoot;
+      const label = root.querySelector('.name, .sensor-label');
+      const labelStyle = getComputedStyle(label);
+      check(labelStyle.whiteSpace === 'nowrap' && labelStyle.textOverflow === 'ellipsis' && labelStyle.overflow === 'hidden', `${width}: ${type} truncates text on one line`);
+      check(new URL(root.querySelector('link').href).searchParams.get('dev') === 'layout-test', `${width}: ${type} stylesheet has current revision`);
+      if (innerWidth <= 600) {
+        const expectedSidePadding = 6;
+        const cardStyle = getComputedStyle(root.querySelector('.card'));
+        check(parseFloat(cardStyle.paddingLeft) === expectedSidePadding && parseFloat(cardStyle.paddingRight) === expectedSidePadding, `${width}: ${type} uses compact mobile side padding`);
+      }
+      const textLines = [...root.querySelector('.content').children].filter(line => getComputedStyle(line).display !== 'none' && !line.hidden);
+      if (textLines.length > 1) {
+        const firstLine = textLines[0].getBoundingClientRect();
+        const secondLine = textLines[1].getBoundingClientRect();
+        check(Math.abs(secondLine.top - firstLine.bottom - 2) < .5, `${width}: ${type} uses the shared headline gap`);
+      }
+      if (type === 'sensor-state-card') {
+        check(parseFloat(labelStyle.fontSize) === 12, `${width}: sensor headline uses subtext size`);
+        check(parseFloat(getComputedStyle(root.querySelector('.value')).fontSize) === 14, `${width}: sensor reading uses normal headline size`);
+        check([...root.querySelectorAll('.info-button > ha-icon, .info-button .compact-action ha-icon')].every(icon => icon.icon === 'mdi:chart-line'), `${width}: sensor custom subicon is used everywhere`);
+        if (width === 150) {
+          hass.states['sensor.test'].state = '21.236';
+          card.hass = hass;
+          check(root.querySelector('.value').textContent === '21.24', 'sensor rounds numeric values to two decimals');
+          hass.states['sensor.test'].state = 'eco';
+          card.hass = hass;
+          check(root.querySelector('.value').textContent === 'Eco translated', 'sensor formats translated nonnumeric states through Home Assistant');
+          hass.states['sensor.test'].state = '21';
+          card.hass = hass;
+        }
+      }
+      if (type === 'thermostat-card') {
+        const expectedTargetSize = width <= 200 ? 14 : width <= 260 ? 16 : 20;
+        check(parseFloat(getComputedStyle(root.querySelector('.target')).fontSize) === expectedTargetSize, `${width}: thermostat target text responds to width`);
+        check(Math.abs(root.querySelector('.temp-button').getBoundingClientRect().height - 36) < 1, `${width}: thermostat button height stays fixed`);
+        const targetBox = root.querySelector('.target-display').getBoundingClientRect();
+        const targetText = root.querySelector('.target').getBoundingClientRect();
+        const downButton = root.querySelector('.temp-down').getBoundingClientRect();
+        const upButton = root.querySelector('.temp-up').getBoundingClientRect();
+        check(Math.abs(targetBox.height - 36) < 1, `${width}: thermostat temperature box height stays fixed`);
+        check(Math.abs((targetText.top + targetText.bottom) / 2 - (targetBox.top + targetBox.bottom) / 2) < .5, `${width}: thermostat temperature remains vertically centered`);
+        check(Math.abs(targetBox.left - downButton.right - 3) < .5 && Math.abs(upButton.left - targetBox.right - 3) < .5, `${width}: thermostat controls use compact equal gaps`);
+        check(getComputedStyle(root.querySelector('.target-display')).paddingLeft === '4px' && getComputedStyle(root.querySelector('.target-display')).paddingRight === '4px', `${width}: thermostat temperature box uses compact side padding`);
+        check(getComputedStyle(root.querySelector('.target-display')).columnGap === '3px', `${width}: thermostat value and unit use a compact gap`);
+        check(root.querySelector('.thermostat-controls').scrollWidth <= root.querySelector('.thermostat-controls').clientWidth, `${width}: thermostat controls contract without horizontal overflow`);
+        continue;
+      }
+      if (type === 'brightness-light-card') {
+        check(!root.querySelector('.switch, .compact-action'), `${width}: dimmer has no switch or power badge`);
+        const dimmerBounds = root.querySelector('.card').getBoundingClientRect();
+        const dimmerIcon = root.querySelector('.icon-shell').getBoundingClientRect();
+        const sliderBounds = root.querySelector('.slider-row').getBoundingClientRect();
+        check(Math.abs(dimmerBounds.height - 120) < 1, `${width}: dimmer keeps stable height`);
+        check(getComputedStyle(root.querySelector('.card')).gridTemplateColumns.split(' ').length === 2, `${width}: dimmer keeps two-column layout`);
+        check(Math.abs((dimmerIcon.top - dimmerBounds.top) - (dimmerBounds.bottom - sliderBounds.bottom)) < 1, `${width}: dimmer has symmetrical top and bottom spacing`);
+        const count = calls.length;
+        root.querySelector('.card').click();
+        check(calls.length === count + 1, `${width}: dimmer card still toggles`);
+        check(!root.querySelector('input[type=range]').disabled, `${width}: dimmer slider remains enabled`);
+        continue;
+      }
+      if (type.startsWith('person')) {
+        const badge = root.querySelector('.badge').getBoundingClientRect();
+        const avatar = root.querySelector('.avatar').getBoundingClientRect();
+        check(badge.right >= avatar.right + 3 && badge.right <= avatar.right + 7, `${width}: person location badge uses state badge horizontal offset`);
+        check(badge.top <= avatar.top - 2 && badge.top >= avatar.top - 5, `${width}: person location badge uses state badge edge offset`);
+        check(root.querySelector('.badge ha-icon').getAttribute('icon') === 'mdi:briefcase', `${width}: person uses current zone icon`);
+        check([...root.querySelectorAll('.battery-icon')].every(icon => icon.icon === 'mdi:battery-charging-70'), `${width}: person uses battery entity icon`);
+        hass.states['sensor.battery'].attributes.icon = 'mdi:battery-70';
+        card.hass = hass;
+        check([...root.querySelectorAll('.battery-icon')].every(icon => icon.icon === 'mdi:battery-70'), `${width}: person follows updated battery entity icon`);
+        hass.states['sensor.battery'].attributes.icon = 'mdi:battery-charging-70';
+        card.hass = hass;
+        if (width <= 200) {
+          const batteryBadge = root.querySelector('.battery-status').getBoundingClientRect();
+          const center = rect => ({ x:rect.left + rect.width / 2, y:rect.top + rect.height / 2 });
+          const avatarCenter = center(avatar);
+          const distance = rect => Math.hypot(center(rect).x - avatarCenter.x, center(rect).y - avatarCenter.y);
+          check(Math.abs(distance(badge) - distance(batteryBadge)) < .5, `${width}: person subicons have equal center distance`);
+        }
+      }
+      const visibleBadge = [...root.querySelectorAll('.badge-face')].find(badge => getComputedStyle(badge).display !== 'none');
+      if (type === 'basic-light-card' && width > 200) {
+        const switchBounds = root.querySelector('.switch').getBoundingClientRect();
+        check(Math.abs(switchBounds.width - 32) < 1 && Math.abs(switchBounds.height - 20) < 1, `${width}: light switch matches the small action scale`);
+      }
+      if (visibleBadge) {
+        const activeCard = root.querySelector('.card');
+        const wasActive = activeCard.classList.contains('active');
+        activeCard.classList.remove('active');
+        check((getComputedStyle(visibleBadge).boxShadow.match(/rgba?\(/g) || []).length === 2, `${width}: ${type} inactive subicon has only neutral shadows`);
+        check(getComputedStyle(visibleBadge.querySelector('ha-icon')).filter === 'none', `${width}: ${type} inactive subicon icon has no glow`);
+        const mainIcon = root.querySelector('.portrait, .fallback, .icon-shell');
+        check(getComputedStyle(visibleBadge).borderColor === getComputedStyle(mainIcon).borderColor, `${width}: ${type} inactive subicon matches main icon border`);
+        activeCard.classList.toggle('active', wasActive);
+      }
+      const button = root.querySelector('.icon-control > button, .icon-control > .nav-action');
+      if (width <= 200) {
+        const description = root.querySelector('.subtext');
+        if (description) check(
+          getComputedStyle(description).display === (type === 'navigation-card' ? 'block' : 'none'),
+          `${width}: ${type} compact description visibility`
+        );
+        const badge = button.getBoundingClientRect();
+        const icon = root.querySelector('.icon-shell, .avatar').getBoundingClientRect();
+        check(badge.right >= icon.right + 3 && badge.right <= icon.right + 7 && badge.bottom >= icon.bottom + 1, `${width}: ${type} badge sits toward outer edge`);
+        check(getComputedStyle(root.querySelector('.compact-action')).display === 'grid', `${width}: ${type} badge visible`);
+        if (type.includes('light')) {
+          const count = calls.length;
+          button.click();
+          check(calls.length === count + 1, `${width}: ${type} toggles once`);
+        } else if (type === 'navigation-card') {
+          let navigations = 0;
+          const handler = () => navigations++;
+          window.addEventListener('location-changed', handler);
+          button.click();
+          window.removeEventListener('location-changed', handler);
+          check(navigations === 1, `${width}: navigation opens once`);
+        } else {
+          let details = 0;
+          card.addEventListener('hass-more-info', () => details++);
+          button.click();
+          check(details === 1, `${width}: info opens once`);
+        }
+      } else {
+        check(getComputedStyle(root.querySelector('.compact-action')).display === 'none', `${width}: ${type} keeps wide action`);
+        {
+          check(getComputedStyle(button).display !== 'none', `${width}: ${type} wide action visible`);
+          const bounds = root.querySelector('.card').getBoundingClientRect();
+          const padding = parseFloat(getComputedStyle(root.querySelector('.card')).paddingRight);
+          check(Math.abs(bounds.right - button.getBoundingClientRect().right - padding - 1) < 3, `${width}: ${type} action stays on right`);
+        }
+      }
+      // Exercise the same mounted card growing and shrinking, as in HA's editor.
+      for (const resizedWidth of [245, 180]) {
+        card.style.width = `${resizedWidth}px`;
+        await new Promise(resolve => setTimeout(resolve, 30));
+        const action = button.getBoundingClientRect();
+        const anchor = root.querySelector('.icon-shell, .avatar').getBoundingClientRect();
+        const cardBounds = root.querySelector('.card').getBoundingClientRect();
+        const padding = parseFloat(getComputedStyle(root.querySelector('.card')).paddingRight);
+        check(resizedWidth > 200
+          ? Math.abs(cardBounds.right - action.right - padding - 1) < 3
+          : action.right >= anchor.right + 3 && action.right <= anchor.right + 7 && action.bottom >= anchor.bottom + 1,
+        `${width}: ${type} moves correctly after resize to ${resizedWidth}`);
+      }
+      if (type.startsWith('person')) {
+        card.setConfig({ entity:'person.test' });
+        card.hass = hass;
+        check(getComputedStyle(root.querySelector('.battery-status')).display === 'none', `${width}: unconfigured battery stays hidden`);
+      }
+    }
+  }
+  document.querySelector('#result').textContent = `PASS: ${checks.length} checks`;
+} catch (error) {
+  document.querySelector('#result').textContent = `FAIL: ${error.message}\n${checks.join('\n')}`;
+}
+</script>
