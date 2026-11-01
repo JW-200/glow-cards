@@ -15,7 +15,6 @@ Glow Cards currently includes seven card types:
 | 📊 Sensor          | `custom:reference-sensor-state-card`     | Sensor value card with configurable active state  |
 | 🌡️ Thermostat     | `custom:reference-thermostat-card`       | Climate card with target-temperature controls     |
 | ➡️ Navigation      | `custom:reference-navigation-card`       | Dashboard navigation card                         |
-
 | Vacuum             | `custom:reference-vacuum-card`            | Optional dock and consumable indicators           |
 
 All cards can be configured through YAML and include a Home Assistant visual editor.

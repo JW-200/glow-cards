@@ -1,4 +1,12 @@
 title: Glow Cards
+# Use the same background on every screen size.
+background:
+  image: /local/glow-cards/backgrounds/background_default.webp
+  opacity: 100
+  size: cover
+  alignment: center
+  repeat: no-repeat
+  attachment: fixed
 views:
   - title: Samples
     path: samples

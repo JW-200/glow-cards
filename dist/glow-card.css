@@ -2114,6 +2114,9 @@
 :host(:not(reference-glow-cards-editor)) .card:is(.grid-1-row, .grid-2-row) {
   --glass-edge-rgb:103,192,211;
   --glass-wash:.035;
+  /* A near-bevel curve cuts the corners while keeping each join soft. */
+  border-radius:10px !important;
+  corner-shape:superellipse(.25);
   /* The masked perimeter supplies the single visible stroke. */
   border-color:transparent;
   background:
@@ -2158,6 +2161,7 @@
 
 /* Reflections sit above the translucent tint; the perimeter stays crisp. */
 :host(:not(reference-glow-cards-editor)) .card:is(.grid-1-row, .grid-2-row)::before {
+  corner-shape:inherit;
   background:
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 320 80' fill='none'%3E%3Cg stroke='%2367c0d3' stroke-width='.65' opacity='.3'%3E%3Cpath d='M70 88C166 87 187 62 232 65S290 45 330 12'/%3E%3Cpath d='M84 90C174 88 192 65 238 68S294 49 332 20'/%3E%3Cpath d='M98 92C182 89 197 68 244 71S298 53 334 28'/%3E%3Cpath d='M112 94C190 90 202 71 250 74S302 57 336 36'/%3E%3Cpath d='M126 96C198 91 207 74 256 77S306 61 338 44'/%3E%3C/g%3E%3C/svg%3E") right bottom / auto 100% no-repeat,
     linear-gradient(156deg,rgba(235,251,255,.13),rgba(235,251,255,.035) 28%,transparent 29% 68%,rgba(211,242,255,.035) 69%,transparent 86%);
@@ -2166,6 +2170,7 @@
 }
 
 :host(:not(reference-glow-cards-editor)) .card:is(.grid-1-row, .grid-2-row)::after {
+  corner-shape:inherit;
   padding:1px;
   background:
     radial-gradient(ellipse at 5% 0,rgba(220,248,255,.65),transparent 42%),
@@ -2186,22 +2191,63 @@
   background:transparent !important;
   -webkit-backdrop-filter:none;
   backdrop-filter:none;
-  box-shadow:
-    inset 0 1px 1px rgba(216,246,255,.14),
-    inset 0 -1px 2px rgba(0,0,0,.3),
-    0 2px 5px rgba(0,0,0,.2) !important;
+  border-style:none !important;
+  border-radius:0;
+  aspect-ratio:1 / 1;
+  box-shadow:none !important;
 }
 
 :host(:not(reference-glow-cards-editor)) .card:is(.grid-1-row, .grid-2-row).active :is(.icon-shell, .fallback, .portrait) {
   color:rgb(var(--accent-rgb)) !important;
   border-color:rgba(var(--accent-rgb),var(--glass-icon-border,.95)) !important;
   background:transparent !important;
-  box-shadow:
-    inset 0 1px 0 rgba(231,255,255,.2),
-    0 0 2px rgba(var(--accent-rgb),.32),
-    -2px 0 10px rgba(var(--accent-rgb),var(--glass-icon-halo1,.38)),
-    0 0 22px rgba(var(--accent-rgb),var(--glass-icon-halo2,.14)),
-    0 2px 5px rgba(0,0,0,.2) !important;
+  box-shadow:none !important;
+}
+
+/* Main frames share a rounded octagonal outline. The avatar frame is separate from
+   the image so its location and battery badges can extend beyond the shape. */
+.card {
+  --main-icon-edge:rgba(117,191,211,.38);
+  --main-icon-shape:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M34.7 1H65.3Q70.3 1 73.84 4.54L95.46 26.16Q99 29.7 99 34.7V65.3Q99 70.3 95.46 73.84L73.84 95.46Q70.3 99 65.3 99H34.7Q29.7 99 26.16 95.46L4.54 73.84Q1 70.3 1 65.3V34.7Q1 29.7 4.54 26.16L26.16 4.54Q29.7 1 34.7 1Z' fill='white'/%3E%3C/svg%3E");
+}
+.card.active {
+  --main-icon-edge:rgba(var(--accent-rgb),var(--glass-icon-border,.95));
+}
+.card:is(.thermostat-card, .vacuum-card, .person-away):not(.active) {
+  --main-icon-edge:rgba(var(--accent-rgb),.38);
+}
+.card :is(.icon-shell, .avatar)::before {
+  content:'';
+  position:absolute;
+  inset:0;
+  z-index:1;
+  pointer-events:none;
+  background:var(--main-icon-edge);
+  /* A hollow SVG mask keeps the glass face transparent at every icon size. */
+  mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M34.7 1H65.3Q70.3 1 73.84 4.54L95.46 26.16Q99 29.7 99 34.7V65.3Q99 70.3 95.46 73.84L73.84 95.46Q70.3 99 65.3 99H34.7Q29.7 99 26.16 95.46L4.54 73.84Q1 70.3 1 65.3V34.7Q1 29.7 4.54 26.16L26.16 4.54Q29.7 1 34.7 1Z' fill='none' stroke='white' stroke-width='2'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+}
+.card .avatar::before {
+  /* Portraits are four pixels smaller than their badge positioning wrapper. */
+  inset:2px;
+}
+/* Badge faces paint above the main outline, including inside the avatar's
+   own stacking context. Compact action wrappers already sit above the icon. */
+.card .badge-face {
+  z-index:2;
+}
+.card .avatar {
+  aspect-ratio:1 / 1;
+}
+.card .fallback {
+  position:relative;
+}
+.card .portrait {
+  mask:var(--main-icon-shape) center / 100% 100% no-repeat;
+}
+.card.active :is(.icon-shell, .avatar) {
+  filter:
+    drop-shadow(0 0 2px rgba(var(--accent-rgb),.32))
+    drop-shadow(0 0 5px rgba(var(--accent-rgb),var(--glass-icon-halo1,.38)));
 }
 
 :host(:not(reference-glow-cards-editor)) .card:is(.grid-1-row, .grid-2-row) :is(.icon-shell, .fallback, .portrait) ha-icon {
