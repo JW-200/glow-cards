@@ -1861,8 +1861,7 @@
   transform:translateX(12px) !important;
 }
 
-/* Give the dimmer two explicit rows and center them as one unit. This keeps
-   the visible icon and slider equally far from the card edges. */
+/* Preserve the dimmer's row sizing and vertical header position. */
 :host(:is(reference-brightness-light-card, brightness-light-card)) .card.grid-2-row {
   grid-template-rows:52px 18px !important;
   row-gap:16px !important;
@@ -1875,13 +1874,35 @@
   grid-row:1 !important;
 }
 :host(:is(reference-brightness-light-card, brightness-light-card)) .card.grid-2-row .slider-row {
-  position:relative !important;
-  inset:auto !important;
-  grid-column:1 / -1 !important;
-  grid-row:2 !important;
-  align-self:center !important;
-  width:100% !important;
-  height:18px !important;
+  position:absolute !important;
+  inset:auto -1px -1px !important;
+  grid-area:auto !important;
+  width:auto !important;
+  height:28px !important;
+}
+/* The bottom edge shows the brightness fill; the transparent native input
+   provides a taller drag target and retains keyboard brightness controls. */
+:host(:is(reference-brightness-light-card, brightness-light-card)) .card.grid-2-row .slider-wrap,
+:host(:is(reference-brightness-light-card, brightness-light-card)) .card.grid-2-row input[type=range] {
+  height:28px !important;
+}
+:host(:is(reference-brightness-light-card, brightness-light-card)) .card.grid-2-row .track {
+  inset:auto 0 0;
+  height:8px;
+  border-radius:0;
+}
+:host(:is(reference-brightness-light-card, brightness-light-card)) .card.grid-2-row input[type=range] {
+  opacity:0;
+}
+:host(:is(reference-brightness-light-card, brightness-light-card)) .card.grid-2-row .slider-row:has(input:focus-visible) .track {
+  outline:2px solid rgb(var(--accent-rgb));
+  outline-offset:-2px;
+}
+:host(:is(reference-brightness-light-card, brightness-light-card)) .card.grid-2-row .percent {
+  display:none;
+}
+:host(:is(reference-brightness-light-card, brightness-light-card)) .card.grid-2-row.slider-interacting {
+  overflow:hidden !important;
 }
 
 @media (max-width:600px) {
