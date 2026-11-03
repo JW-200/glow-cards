@@ -411,14 +411,14 @@
       .card:hover,.card:active { transform:none!important; }
     }
 
-/* Basic light labels and toggle retain their existing scale. */
+/* Both light cards share the same On/Off label styling. */
 :host(:is(reference-basic-light-card, basic-light-card)) .card .name {
   font-weight:650;
   letter-spacing:-.3px;
   text-shadow:0 1px 2px rgba(0,0,0,.25);
 }
 
-:host(:is(reference-basic-light-card, basic-light-card)) .card .state {
+:host(:is(reference-basic-light-card, basic-light-card, reference-brightness-light-card, brightness-light-card)) .card .content .state {
   color:#9cb7c8;
   font-weight:450;
   font-size:12px !important;
@@ -427,7 +427,7 @@
   text-transform:uppercase;
 }
 
-:host(:is(reference-basic-light-card, basic-light-card)) .card.active .state {
+:host(:is(reference-basic-light-card, basic-light-card, reference-brightness-light-card, brightness-light-card)) .card.active .state {
   color:rgb(var(--accent-rgb));
 }
 
@@ -1598,7 +1598,7 @@
 }
 .grid-2-row .current { margin-top:2px !important; font-size:14px !important; }
 .grid-2-row .thermostat-controls {
-  width:min(100%,260px) !important;
+  width:min(100%,200px) !important;
   grid-template-columns:36px minmax(36px,1fr) 36px !important;
   gap:3px !important;
 }
@@ -1891,6 +1891,12 @@
   }
 }
 
+/* Match normal-light side insets without changing dimmer sizing or rows. */
+:host(:is(reference-brightness-light-card, brightness-light-card)) .card.grid-2-row.light-card {
+  padding-left:11px !important;
+  padding-right:11px !important;
+}
+
 /* Compact mobile side insets across every card type. */
 @media (max-width:600px) {
   :host .card.grid-1-row:not(.grid-2-row) {
@@ -1901,7 +1907,7 @@
     padding-left:6px !important;
     padding-right:6px !important;
   }
-  :host(:is(reference-brightness-light-card, brightness-light-card)) .card.grid-2-row {
+  :host(:is(reference-brightness-light-card, brightness-light-card)) .card.grid-2-row.light-card {
     padding-left:6px !important;
     padding-right:6px !important;
   }
@@ -1919,7 +1925,8 @@
 /* Narrow grid cells use smaller side insets. */
 @container (max-width:200px) {
   :host .card.grid-1-row:not(.grid-2-row),
-  :host .card.grid-2-row {
+  :host .card.grid-2-row,
+  :host(:is(reference-brightness-light-card, brightness-light-card)) .card.grid-2-row.light-card {
     padding-left:4px !important;
     padding-right:4px !important;
   }
@@ -2311,10 +2318,13 @@
   box-shadow:inset 0 1px 0 rgba(231,251,255,.14),0 3px 8px rgba(0,0,0,.18);
 }
 :host(:is(reference-thermostat-card, thermostat-card)) .card.thermostat-card .temp-down {
-  border-radius:18px 8px 8px 18px !important;
+  /* Leave a flat outer side between the upper and lower diagonal cuts. */
+  border-radius:11px 8px 8px 11px !important;
+  corner-shape:bevel round round bevel;
 }
 :host(:is(reference-thermostat-card, thermostat-card)) .card.thermostat-card .temp-up {
-  border-radius:8px 18px 18px 8px !important;
+  border-radius:8px 11px 11px 8px !important;
+  corner-shape:round bevel bevel round;
 }
 :host(:is(reference-vacuum-card, vacuum-card)) .card.vacuum-card .vacuum-indicator {
   background:
