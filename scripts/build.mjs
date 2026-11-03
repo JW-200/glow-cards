@@ -1,4 +1,4 @@
-import { copyFile, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { transform as transformJavascript } from 'esbuild';
 import { transform } from 'lightningcss';
 
@@ -7,8 +7,6 @@ const javascriptSource = new URL('../dist/glow-cards.js', import.meta.url);
 const cssSource = new URL('../dist/glow-card.css', import.meta.url);
 const javascriptOutput = new URL('glow-cards.js', outputDirectory);
 const cssOutput = new URL('glow-card.css', outputDirectory);
-const backgroundsSource = new URL('../dist/backgrounds/', import.meta.url);
-const backgroundsOutput = new URL('backgrounds/', outputDirectory);
 
 const source = await readFile(javascriptSource, 'utf8');
 const fallbackVersion = source.match(/: '([^']+)';\s*$/m)?.[1];
@@ -34,15 +32,6 @@ const minifiedCss = transform({
 });
 await writeFile(cssOutput, minifiedCss.code);
 
-// Backgrounds are optional user-supplied assets; copy image files unchanged.
-const backgrounds = (await readdir(backgroundsSource, { withFileTypes:true }))
-  .filter((file) => file.isFile() && /\.(?:jpe?g|png|webp|avif|gif|svg)$/i.test(file.name));
-await mkdir(backgroundsOutput, { recursive:true });
-for (const file of backgrounds) {
-  const filename = encodeURIComponent(file.name);
-  await copyFile(new URL(filename, backgroundsSource), new URL(filename, backgroundsOutput));
-}
-
 const javascriptBytes = (await readFile(javascriptOutput)).byteLength;
 const cssBytes = minifiedCss.code.byteLength;
-console.log(`Built Glow Cards ${version}: JS ${javascriptBytes} bytes, CSS ${cssBytes} bytes, ${backgrounds.length} background images`);
+console.log(`Built Glow Cards ${version}: JS ${javascriptBytes} bytes, CSS ${cssBytes} bytes`);
